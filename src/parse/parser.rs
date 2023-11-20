@@ -49,7 +49,7 @@ peg::parser! {
                     runway_reports:runway_report() ** whitespace() whitespace()
                     water_conditions:water_conditions()? whitespace()
                     trends:trend()** whitespace() whitespace()
-                    remark:$((":RMK" / "R MK"/ "RMK" / "REMARK") [^'$']*)?
+                    remark:remark()?
                     maintenance_needed:quiet!{"$"}? whitespace()
                     // Consumes trailing garbage characters
                     quiet!{"/"*} whitespace()
@@ -87,13 +87,7 @@ peg::parser! {
         pub rule whitespace() = required_whitespace()?
         rule required_whitespace_or_eof() = (required_whitespace() / ![_])
         rule required_whitespace() =
-            quiet!{
-                (
-                    (whitespace_char()+ ("/"+ whitespace_char())+)
-                    / (whitespace_char()+ ("M" whitespace_char())+)
-                    / whitespace_char()+
-                )+
-            }
+            quiet!{(whitespace_char())+}
             / expected!("whitespace");
         rule whitespace_char() -> &'input str = $(
                 " "
@@ -102,17 +96,21 @@ peg::parser! {
                 / "\t"
                 / ">"
             );
+        rule remark() -> &'input str = quiet!{$((":RMK" / "R MK"/ "RMK" / "REMARK") [^'$']*)} / expected!("remark");
         rule digit() -> &'input str = quiet!{$(['0'..='9'])} / expected!("digit");
         rule letter() -> &'input str = quiet!{$(['A'..='Z'])} / expected!("letter");
         rule letter_or_digit() -> &'input str = letter() / digit();
 
-        pub rule observation_time() -> DateTime = day_of_month:$(digit() digit()) time:military_time() is_zulu:"Z"? {
-            // TODO: some stations don't include the Z. Not sure if that could mean it is local time and not GMT.
-            DateTime {
-                day_of_month: day_of_month.parse().unwrap(),
-                time,
-                is_zulu: is_zulu.is_some(),
-            }
+        pub rule observation_time() -> DateTime = 
+            quiet!{
+                day_of_month:$(digit() digit()) time:military_time() is_zulu:"Z"? {
+                // TODO: some stations don't include the Z. Not sure if that could mean it is local time and not GMT.
+                DateTime {
+                    day_of_month: day_of_month.parse().unwrap(),
+                    time,
+                    is_zulu: is_zulu.is_some(),
+                }
+            } / expected!("observation_time")
         }
         rule military_time() -> MilitaryTime = hour:$(digit()*<2>) minute:$(digit()*<2>) {
             MilitaryTime {
@@ -163,45 +161,48 @@ peg::parser! {
         }
 
         pub rule visibility() -> Option<Visibility> =
-            // Some systems will attach a number in front of NDV
-            (digit()*) "NDV" visibility_unit()? { None }
-            / "////" visibility_unit() { None }
-            / "////" "NDV" visibility_unit()? { None }
-            / prevailing:raw_visibility() whitespace() minimum:directional_or_raw_visibility() whitespace() maximum_directional:directional_visibility() {
-                Some(Visibility {
-                    prevailing: Some(prevailing),
-                    minimum: Some(minimum),
-                    maximum_directional: Some(maximum_directional),
-                })
-            }
-            / prevailing:raw_visibility() whitespace() minimum:directional_or_raw_visibility() {
-                Some(Visibility {
-                    prevailing: Some(prevailing),
-                    minimum: Some(minimum),
-                    maximum_directional: None,
-                })
-            }
-            / minimum:directional_visibility() whitespace() maximum_directional:directional_visibility() {
-                Some(Visibility {
-                    prevailing: None,
-                    minimum: Some(DirectionalOrRawVisiblity::Directional(minimum)),
-                    maximum_directional: Some(maximum_directional),
-                })
-            }
-            / minimum:directional_visibility() {
-                Some(Visibility {
-                    prevailing: None,
-                    minimum: Some(DirectionalOrRawVisiblity::Directional(minimum)),
-                    maximum_directional: None,
-                })
-            }
-            / prevailing:raw_visibility() {
-                Some(Visibility {
-                    prevailing: Some(prevailing),
-                    minimum: None,
-                    maximum_directional: None,
-                })
-            }
+            quiet!{
+                // Some systems will attach a number in front of NDV
+                (digit()*) "NDV" visibility_unit()? { None }
+                / "////" visibility_unit() { None }
+                / "////" "NDV" visibility_unit()? { None }
+                / prevailing:raw_visibility() whitespace() minimum:directional_or_raw_visibility() whitespace() maximum_directional:directional_visibility() &required_whitespace(){
+                    Some(Visibility {
+                        prevailing: Some(prevailing),
+                        minimum: Some(minimum),
+                        maximum_directional: Some(maximum_directional),
+                    })
+                }
+                / prevailing:raw_visibility() whitespace() minimum:directional_or_raw_visibility() &required_whitespace() {
+                    Some(Visibility {
+                        prevailing: Some(prevailing),
+                        minimum: Some(minimum),
+                        maximum_directional: None,
+                    })
+                }
+                / minimum:directional_visibility() whitespace() maximum_directional:directional_visibility() &required_whitespace(){
+                    Some(Visibility {
+                        prevailing: None,
+                        minimum: Some(DirectionalOrRawVisiblity::Directional(minimum)),
+                        maximum_directional: Some(maximum_directional),
+                    })
+                }
+                / minimum:directional_visibility() &required_whitespace() {
+                    Some(Visibility {
+                        prevailing: None,
+                        minimum: Some(DirectionalOrRawVisiblity::Directional(minimum)),
+                        maximum_directional: None,
+                    })
+                }
+                / prevailing:raw_visibility() &required_whitespace() {
+                    Some(Visibility {
+                        prevailing: Some(prevailing),
+                        minimum: None,
+                        maximum_directional: None,
+                    })
+                }
+            } / expected!("visibility")
+
         rule directional_or_raw_visibility() -> DirectionalOrRawVisiblity =
             directional:directional_visibility() { DirectionalOrRawVisiblity::Directional(directional) }
             / raw:raw_visibility() { DirectionalOrRawVisiblity::Raw(raw) }
@@ -212,7 +213,7 @@ peg::parser! {
             }
         }
         rule raw_visibility() -> RawVisibility =
-            out_of_range:out_of_range()? whole:$(digit()+) whitespace() numerator:$(digit()+) "/" denominator:$(digit()+) unit:visibility_unit()? {
+            out_of_range:out_of_range()? whole:$(digit()+) whitespace()? numerator:$(digit()+) "/" denominator:$(digit()+) unit:visibility_unit()? {
                 let value = whole.parse::<f64>().unwrap() + numerator.parse::<f64>().unwrap() / denominator.parse::<f64>().unwrap();
 
                 let distance = match unit {
@@ -259,27 +260,29 @@ peg::parser! {
         rule visibility_unit() -> &'input str = whitespace() val:$(quiet!{"M" / "KM" / "SM"} / expected!("visibility unit")) &required_whitespace_or_eof() { val }
 
         pub rule runway_visibility() -> Option<RunwayVisibility<'input>> =
-            "R" designator:designator() "/" !runway_report_info() range:raw_runway_visibility_range() trend:visibility_trend()? "/"? {
-                Some(RunwayVisibility {
-                    designator,
-                    visibility: VisibilityType::Varying {
-                        lower: range.0,
-                        upper: range.1,
-                    },
-                    trend,
-                })
-            }
-            / "R" designator:designator() "/" !runway_report_info() visibility:raw_runway_visibility() trend:visibility_trend()? "/"? {
-                Some(RunwayVisibility {
-                    designator,
-                    visibility: VisibilityType::Fixed(visibility),
-                    trend,
-                })
-            }
-            // A varying number of slashes and a missing designator has been observed here
-            / "R" designator:designator()? ("/////" "/"*) &required_whitespace_or_eof() {
-                None
-            }
+            quiet!{
+                "R" designator:designator() "/" !runway_report_info() range:raw_runway_visibility_range() trend:visibility_trend()? "/"? {
+                    Some(RunwayVisibility {
+                        designator,
+                        visibility: VisibilityType::Varying {
+                            lower: range.0,
+                            upper: range.1,
+                        },
+                        trend,
+                    })
+                }
+                / "R" designator:designator() "/" !runway_report_info() visibility:raw_runway_visibility() trend:visibility_trend()? "/"? {
+                    Some(RunwayVisibility {
+                        designator,
+                        visibility: VisibilityType::Fixed(visibility),
+                        trend,
+                    })
+                }
+                // A varying number of slashes and a missing designator has been observed here
+                / "R" designator:designator()? ("/////" "/"*) &required_whitespace_or_eof() {
+                    None
+                }
+            } / expected!("runway_visibility")
         rule raw_runway_visibility_range() -> (RawVisibility, RawVisibility) = lower_out_of_range:out_of_range()? lower_value:$(digit()+) "V" upper_out_of_range:out_of_range()? upper_value:$(digit()+) unit:$("FT")? {
             let lower_value = lower_value.parse::<f64>().unwrap();
             let upper_value = upper_value.parse::<f64>().unwrap();
@@ -325,12 +328,14 @@ peg::parser! {
         rule visibility_trend() -> VisibilityTrend = "/"? val:$(quiet!{("D" / "N" / "U")} / expected!("visibility trend")) { VisibilityTrend::try_from(val.trim_start_matches('/')).unwrap() };
 
         pub rule runway_report() -> Option<RunwayReport<'input>> =
-            "R" designator:designator() "/" report_info:runway_report_info() {
-                Some(RunwayReport {
-                    designator,
-                    report_info,
-                })
-            }
+            quiet!{
+                "R" designator:designator() "/" report_info:runway_report_info() {
+                    Some(RunwayReport {
+                        designator,
+                        report_info,
+                    })
+                }
+            } / expected!("runway_report")
         rule runway_report_info() -> RunwayReportInfo =
             "CLRD" friction:$("//" / digit()+) {
                 RunwayReportInfo::Cleared {
@@ -394,44 +399,49 @@ peg::parser! {
             recent_weather.iter().cloned().flatten().collect()
         }
         rule recent_weather() -> Option<Weather> =
-            "RE" weather:weather() &required_whitespace_or_eof() { Some(weather) }
-            / "RE//" &required_whitespace_or_eof() { None }
+            quiet!{
+                "RE" weather:weather() &required_whitespace_or_eof() { Some(weather) }
+                / "RE//" &required_whitespace_or_eof() { None }
+            }
+            / expected!("recent_weather")
 
         rule weather_sequence() -> Vec<Weather> = weather:weather() ++ whitespace() &required_whitespace_or_eof() { weather }
 
         pub rule weather() -> Weather =
-            intensity:intensity() vicinity:"VC"? descriptor:descriptor()? precipitation:precipitation()+ {
-                Weather {
-                    intensity,
-                    vicinity: vicinity.is_some(),
-                    descriptor,
-                    condition: Some(Condition::Precipitation(precipitation)),
+            quiet!{
+                intensity:intensity() vicinity:"VC"? descriptor:descriptor()? precipitation:precipitation()+ {
+                    Weather {
+                        intensity,
+                        vicinity: vicinity.is_some(),
+                        descriptor,
+                        condition: Some(Condition::Precipitation(precipitation)),
+                    }
                 }
-            }
-            / intensity:intensity() vicinity:"VC"? descriptor:descriptor()? obscuration:obscuration() {
-                Weather {
-                    intensity,
-                    vicinity: vicinity.is_some(),
-                    descriptor,
-                    condition: Some(Condition::Obscuration(obscuration)),
+                / intensity:intensity() vicinity:"VC"? descriptor:descriptor()? obscuration:obscuration() {
+                    Weather {
+                        intensity,
+                        vicinity: vicinity.is_some(),
+                        descriptor,
+                        condition: Some(Condition::Obscuration(obscuration)),
+                    }
                 }
-            }
-            / intensity:intensity() vicinity:"VC"? descriptor:descriptor()? other:other() {
-                Weather {
-                    intensity,
-                    vicinity: vicinity.is_some(),
-                    descriptor,
-                    condition: Some(Condition::Other(other)),
+                / intensity:intensity() vicinity:"VC"? descriptor:descriptor()? other:other() {
+                    Weather {
+                        intensity,
+                        vicinity: vicinity.is_some(),
+                        descriptor,
+                        condition: Some(Condition::Other(other)),
+                    }
                 }
-            }
-            / intensity:intensity() vicinity:"VC"? descriptor:descriptor() {
-                Weather {
-                    intensity,
-                    vicinity: vicinity.is_some(),
-                    descriptor: Some(descriptor),
-                    condition: None,
+                / intensity:intensity() vicinity:"VC"? descriptor:descriptor() {
+                    Weather {
+                        intensity,
+                        vicinity: vicinity.is_some(),
+                        descriptor: Some(descriptor),
+                        condition: None,
+                    }
                 }
-            }
+            } / expected!("weather")
         rule intensity() -> Intensity = val:$(quiet!{[ '+' | '-' ]} / expected!("intensity"))? { val.map(Intensity::try_from).transpose().unwrap().unwrap_or(Intensity::Moderate) }
         rule descriptor() -> Descriptor =
             val:$(quiet!{
@@ -550,21 +560,23 @@ peg::parser! {
         }
 
         pub rule temperatures() -> Option<Temperatures> =
-            air:temperature() ("/" / ".") ("XX" / "//") !(visibility_unit() / windspeed_unit()) {
-                Some(Temperatures {
-                    air,
-                    dewpoint: None,
-                })
-            }
-            / air:temperature() ("/" / ".") dewpoint:temperature()? !(visibility_unit() / windspeed_unit()) {
-                Some(Temperatures {
-                    air,
-                    dewpoint
-                })
-            }
-            / "XX/XX" {
-                None
-            }
+            quiet!{
+                air:temperature() ("/" / ".") ("XX" / "//") !(visibility_unit() / windspeed_unit()) {
+                    Some(Temperatures {
+                        air,
+                        dewpoint: None,
+                    })
+                }
+                / air:temperature() ("/" / ".") dewpoint:temperature()? !(visibility_unit() / windspeed_unit()) {
+                    Some(Temperatures {
+                        air,
+                        dewpoint
+                    })
+                }
+                / "XX/XX" {
+                    None
+                }
+            } / expected!("temperatures")
 
         pub rule pressure() -> Option<Pressure> =
             pressure_unit:pressure_unit() whitespace() pressure:$(digit()+ ("." digit()+)?) {
@@ -576,45 +588,52 @@ peg::parser! {
             / pressure_unit() whitespace() ("////" / "NIL") { None }
         rule pressure_unit() -> &'input str = $(quiet!{"QFE" / "QNH" / "Q" / "A"} / expected!("pressure unit"));
 
-        rule accumulated_rainfall() -> AccumulatedRainfall = "RF" recent:$(digit()+ "." digit()+) "/" past:$(digit()+ "." digit()+) {
-            AccumulatedRainfall {
-                recent: Length::new::<millimeter>(recent.parse().unwrap()),
-                past: Length::new::<millimeter>(past.parse().unwrap()),
-            }
+        rule accumulated_rainfall() -> AccumulatedRainfall = 
+            quiet! {
+                "RF" recent:$(digit()+ "." digit()+) "/" past:$(digit()+ "." digit()+) {
+                AccumulatedRainfall {
+                    recent: Length::new::<millimeter>(recent.parse().unwrap()),
+                    past: Length::new::<millimeter>(past.parse().unwrap()),
+                }
+            } / expected!("accumulated_rainfall")
         }
 
         pub rule color() -> Color =
-            is_black:"BLACK"? whitespace() current_color:color_state() whitespace() next_color:color_state() &required_whitespace_or_eof() {
-                Color {
-                    is_black: is_black.is_some(),
-                    current_color,
-                    next_color: Some(next_color),
+            quiet!{
+                is_black:"BLACK"? whitespace() current_color:color_state() whitespace() next_color:color_state() &required_whitespace_or_eof() {
+                    Color {
+                        is_black: is_black.is_some(),
+                        current_color,
+                        next_color: Some(next_color),
+                    }
                 }
-            }
-            / is_black:"BLACK"? whitespace() current_color:color_state() &required_whitespace_or_eof() {
-                Color {
-                    is_black: is_black.is_some(),
-                    current_color,
-                    next_color: None,
+                / is_black:"BLACK"? whitespace() current_color:color_state() &required_whitespace_or_eof() {
+                    Color {
+                        is_black: is_black.is_some(),
+                        current_color,
+                        next_color: None,
+                    }
                 }
-            }
+            } / expected!("color")
         rule color_state() -> ColorState = val:$(quiet!{"BLU+" / "BLU" / "WHT" / "GRN" / "YLO1" / "YLO2" / "YLO" / "AMB" / "RED"} / expected!("color state")) { ColorState::try_from(val).unwrap() }
 
         pub rule water_conditions() -> WaterConditions =
-            "W" temperature:$("//" / digit()+) "/" "S" surface_state:$("/" / digit()) {
-                WaterConditions {
-                    temperature: if temperature == "//" { None } else { Some(ThermodynamicTemperature::new::<degree_celsius>(temperature.parse().unwrap()))},
-                    surface_state: if surface_state == "/" { None } else { Some(WaterSurfaceState::try_from(surface_state).unwrap()) },
-                    significant_wave_height: None,
+            quiet!{
+                "W" temperature:$("//" / digit()+) "/" "S" surface_state:$("/" / digit()) {
+                    WaterConditions {
+                        temperature: if temperature == "//" { None } else { Some(ThermodynamicTemperature::new::<degree_celsius>(temperature.parse().unwrap()))},
+                        surface_state: if surface_state == "/" { None } else { Some(WaterSurfaceState::try_from(surface_state).unwrap()) },
+                        significant_wave_height: None,
+                    }
                 }
-            }
-            / "W" temperature:$("//" / digit()+) "/" "H" wave_height:$("/"+ / digit()+) {
-                WaterConditions {
-                    temperature: if temperature == "//" { None } else { Some(ThermodynamicTemperature::new::<degree_celsius>(temperature.parse().unwrap()))},
-                    surface_state: None,
-                    significant_wave_height: if wave_height.starts_with('/') { None } else { Some(Length::new::<decimeter>(wave_height.parse().unwrap())) },
+                / "W" temperature:$("//" / digit()+) "/" "H" wave_height:$("/"+ / digit()+) {
+                    WaterConditions {
+                        temperature: if temperature == "//" { None } else { Some(ThermodynamicTemperature::new::<degree_celsius>(temperature.parse().unwrap()))},
+                        surface_state: None,
+                        significant_wave_height: if wave_height.starts_with('/') { None } else { Some(Length::new::<decimeter>(wave_height.parse().unwrap())) },
+                    }
                 }
-            }
+            } / expected!("water_conditions")
 
         rule trend() -> Trend =
             $(quiet!{"NOSIG" / "NOISIG" / "NSOIG" / "N0SIG" / "NOS16" / "NOSING" / "NOSG" / "NSG" / "NOSIC" / "NOSIGI" } / expected!("trend")) {

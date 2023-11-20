@@ -408,38 +408,40 @@ peg::parser! {
         rule weather_sequence() -> Vec<Weather> = weather:weather() ++ whitespace() &required_whitespace_or_eof() { weather }
 
         pub rule weather() -> Weather =
-            intensity:intensity() vicinity:"VC"? descriptor:descriptor()? precipitation:precipitation()+ {
-                Weather {
-                    intensity,
-                    vicinity: vicinity.is_some(),
-                    descriptor,
-                    condition: Some(Condition::Precipitation(precipitation)),
+            quiet!{
+                intensity:intensity() vicinity:"VC"? descriptor:descriptor()? precipitation:precipitation()+ {
+                    Weather {
+                        intensity,
+                        vicinity: vicinity.is_some(),
+                        descriptor,
+                        condition: Some(Condition::Precipitation(precipitation)),
+                    }
                 }
-            }
-            / intensity:intensity() vicinity:"VC"? descriptor:descriptor()? obscuration:obscuration() {
-                Weather {
-                    intensity,
-                    vicinity: vicinity.is_some(),
-                    descriptor,
-                    condition: Some(Condition::Obscuration(obscuration)),
+                / intensity:intensity() vicinity:"VC"? descriptor:descriptor()? obscuration:obscuration() {
+                    Weather {
+                        intensity,
+                        vicinity: vicinity.is_some(),
+                        descriptor,
+                        condition: Some(Condition::Obscuration(obscuration)),
+                    }
                 }
-            }
-            / intensity:intensity() vicinity:"VC"? descriptor:descriptor()? other:other() {
-                Weather {
-                    intensity,
-                    vicinity: vicinity.is_some(),
-                    descriptor,
-                    condition: Some(Condition::Other(other)),
+                / intensity:intensity() vicinity:"VC"? descriptor:descriptor()? other:other() {
+                    Weather {
+                        intensity,
+                        vicinity: vicinity.is_some(),
+                        descriptor,
+                        condition: Some(Condition::Other(other)),
+                    }
                 }
-            }
-            / intensity:intensity() vicinity:"VC"? descriptor:descriptor() {
-                Weather {
-                    intensity,
-                    vicinity: vicinity.is_some(),
-                    descriptor: Some(descriptor),
-                    condition: None,
+                / intensity:intensity() vicinity:"VC"? descriptor:descriptor() {
+                    Weather {
+                        intensity,
+                        vicinity: vicinity.is_some(),
+                        descriptor: Some(descriptor),
+                        condition: None,
+                    }
                 }
-            }
+            } / expected!("weather")
         rule intensity() -> Intensity = val:$(quiet!{[ '+' | '-' ]} / expected!("intensity"))? { val.map(Intensity::try_from).transpose().unwrap().unwrap_or(Intensity::Moderate) }
         rule descriptor() -> Descriptor =
             val:$(quiet!{

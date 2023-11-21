@@ -589,6 +589,8 @@ pub struct MetarReport<'input> {
     pub trends: Vec<Trend>,
     /// Additional information outside of the METAR specification
     pub remark: Option<&'input str>,
+    /// Pilot reported weather information
+    pub pirep_remark: Option<&'input str>,
     /// Some automated METARs indicate if the system needs maintenance
     ///
     /// This may indicate that measurements are unreliable

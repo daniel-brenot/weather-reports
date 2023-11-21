@@ -12,8 +12,22 @@ use crate::tokens::*;
 
 peg::parser! {
     pub grammar weather_reports() for str {
+        
+        rule traced<T>(e: rule<T>) -> T =
+            &(input:$([_]*) {
+                #[cfg(feature = "trace")]
+                println!("[PEG_INPUT_START]\n{}\n[PEG_TRACE_START]", input);
+            })
+            e:e()? {?
+                #[cfg(feature = "trace")]
+                println!("[PEG_TRACE_STOP]");
+                e.ok_or("")
+            }
+        
+        pub rule metar() -> MetarReport<'input> = traced(<metar0()>)
+
         /// [METAR](https://en.wikipedia.org/wiki/METAR) parser
-        pub rule metar() -> MetarReport<'input> =
+        rule metar0() -> MetarReport<'input> =
                     whitespace()
                     report_name()? whitespace()
                     pre_observation_flags:observation_flag() ** whitespace() whitespace()
@@ -49,6 +63,7 @@ peg::parser! {
                     runway_reports:runway_report() ** whitespace() whitespace()
                     water_conditions:water_conditions()? whitespace()
                     trends:trend()** whitespace() whitespace()
+                    pirep_remark:pirep_remark()?
                     remark:remark()?
                     maintenance_needed:quiet!{"$"}? whitespace()
                     // Consumes trailing garbage characters
@@ -76,6 +91,7 @@ peg::parser! {
                     water_conditions,
                     trends,
                     remark,
+                    pirep_remark,
                     maintenance_needed: maintenance_needed.is_some(),
                 }
             }
@@ -87,7 +103,11 @@ peg::parser! {
         pub rule whitespace() = required_whitespace()?
         rule required_whitespace_or_eof() = (required_whitespace() / ![_])
         rule required_whitespace() =
-            quiet!{(whitespace_char())+}
+            quiet!{
+                (whitespace_char()+ ("/"+ whitespace_char())+)
+                / (whitespace_char()+ ("M" whitespace_char())+)
+                / whitespace_char()+
+            }
             / expected!("whitespace");
         rule whitespace_char() -> &'input str = $(
                 " "
@@ -96,6 +116,7 @@ peg::parser! {
                 / "\t"
                 / ">"
             );
+        rule pirep_remark() -> &'input str = quiet!{$(("RM") [^'$']* !remark())} / expected!("auto remark");
         rule remark() -> &'input str = quiet!{$((":RMK" / "R MK"/ "RMK" / "REMARK") [^'$']*)} / expected!("remark");
         rule digit() -> &'input str = quiet!{$(['0'..='9'])} / expected!("digit");
         rule letter() -> &'input str = quiet!{$(['A'..='Z'])} / expected!("letter");

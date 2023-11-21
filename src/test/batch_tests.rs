@@ -13,7 +13,7 @@ use crate::parse::into_diagnostic;
 #[test]
 fn validate_against_year_of_ktpa_metar_reports() {
     let mut reports = String::new();
-    Decoder::new(Cursor::new(include_bytes!("../tests/ktpa.txt.zst")))
+    Decoder::new(Cursor::new(include_bytes!("../../tests/ktpa.txt.zst")))
         .unwrap()
         .read_to_string(&mut reports)
         .unwrap();
@@ -44,9 +44,16 @@ fn validate_against_year_of_ktpa_metar_reports() {
 }
 
 #[test]
+fn validate_metar() {
+    let metar = "KTDF 202145Z AUTO 09004KT 10SM CLR 13/M01 A3029 RM AO1 8 RMK AO2 T0123101K AO2 T01520052=";
+    crate::parse::metar(metar).unwrap();
+}
+// KTDF 202145Z AUTO 09004KT 10SM CLR 13/M01 A3029 RM AO1 8 RMK AO2 T0123101K AO2 T01520052=
+
+#[test]
 fn validate_against_all_ogimet_latest_reports_by_country() {
     tar::Archive::new(
-        Decoder::new(Cursor::new(include_bytes!("../tests/countries.tar.zst"))).unwrap(),
+        Decoder::new(Cursor::new(include_bytes!("../../tests/countries.tar.zst"))).unwrap(),
     )
     .entries()
     .unwrap()

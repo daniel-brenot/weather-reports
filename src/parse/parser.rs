@@ -61,6 +61,8 @@ peg::parser! {
                     // Some stations report runway visibility after pressure
                     runway_visibilities_post_pressure:runway_visibility() ** whitespace() whitespace()
                     runway_reports:runway_report() ** whitespace() whitespace()
+                    // Some stations report runway visibility after runway reports
+                    runway_visibilities_post_reports:runway_visibility() ** whitespace() whitespace()
                     water_conditions:water_conditions()? whitespace()
                     trends:trend()** whitespace() whitespace()
                     pirep_remark:pirep_remark()?
@@ -78,7 +80,7 @@ peg::parser! {
                     observation_flags: pre_observation_flags.iter().copied().chain(observation_flags).collect(),
                     wind: wind.flatten(),
                     visibility: visibility.flatten(),
-                    runway_visibilities: runway_visibilities.iter().copied().chain(runway_visibilities_post_pressure).flatten().collect(),
+                    runway_visibilities: runway_visibilities.iter().copied().chain(runway_visibilities_post_pressure).chain(runway_visibilities_post_reports).flatten().collect(),
                     runway_reports: runway_reports.iter().copied().flatten().collect(),
                     weather: weather.unwrap_or_default().drain(..).chain(weather_post_pressure.unwrap_or_default()).collect(),
                     cloud_cover: cloud_cover.iter().copied().chain(cloud_cover_post_pressure).chain(cloud_cover_post_recent_weather).flatten().collect(),
@@ -116,7 +118,7 @@ peg::parser! {
                 / "\t"
                 / ">"
             );
-        rule pirep_remark() -> &'input str = quiet!{$(("RM") [^'$']* !remark())} / expected!("auto remark");
+        rule pirep_remark() -> &'input str = quiet!{$(("RM") required_whitespace() [^'$']* !remark())} / expected!("auto remark");
         rule remark() -> &'input str = quiet!{$((":RMK" / "R MK"/ "RMK" / "REMARK") [^'$']*)} / expected!("remark");
         rule digit() -> &'input str = quiet!{$(['0'..='9'])} / expected!("digit");
         rule letter() -> &'input str = quiet!{$(['A'..='Z'])} / expected!("letter");

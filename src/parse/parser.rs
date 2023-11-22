@@ -614,10 +614,11 @@ peg::parser! {
                     "A" => {
                         // Some countries report altimeter values in hectopascals, while others use altimeter
                         // The only way to tell is by seeing if the value is unreasonable as a number in hectopascals
-                        if pressure.parse::<u32>().unwrap() > 2000 {
-                            Some(Pressure::new::<inch_of_mercury>(pressure.parse().unwrap()))
+                        let pressure_val = pressure.parse::<f64>().unwrap();
+                        if pressure_val > 2000.0 {
+                            Some(Pressure::new::<inch_of_mercury>(pressure_val))
                         } else {
-                            Some(Pressure::new::<hectopascal>(pressure.parse().unwrap()))
+                            Some(Pressure::new::<hectopascal>(pressure_val))
                         }
                     },
                     _ => Some(Pressure::new::<hectopascal>(pressure.parse::<f64>().unwrap() / 100.))

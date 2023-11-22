@@ -1,5 +1,5 @@
 use uom::si::f64::Pressure;
-use uom::si::pressure::hectopascal;
+use uom::si::pressure::kilopascal;
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct Remarks {
@@ -56,8 +56,14 @@ peg::parser! {
         rule remark() -> RemarkOptions<'input> = sea_level_pressure() / unknown_remark();
 
         rule sea_level_pressure() -> RemarkOptions<'input> = "SLP" slp:$(digit()+) {
+            let mut slpval = slp.parse::<f64>().unwrap();
+            if slpval > 500.0 {
+                slpval = ((slpval / 10.0) + 900.0) / 10.0;
+            } else {
+                slpval = ((slpval / 10.0) + 1000.0) / 10.0;
+            }
             RemarkOptions::SeaLevelPressure(
-                Pressure::new::<hectopascal>(slp.parse().unwrap())
+                Pressure::new::<kilopascal>(slpval)
             )
         }
 

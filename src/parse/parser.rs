@@ -76,7 +76,6 @@ peg::parser! {
                     quiet!{"=" [_]*}? whitespace()
                     {
                 let remark = remark.or(unmarked_remark);
-                println!("{:?}", remark);
                 let remarks = match crate::parse::remarks::metar_remarks::remarks(remark.unwrap_or("")) {
                     Ok(a) => Some(a),
                     Err(e) => None

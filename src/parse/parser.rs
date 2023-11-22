@@ -73,6 +73,10 @@ peg::parser! {
                     // Some machines use = to indicate end of message
                     quiet!{"=" [_]*}? whitespace()
                     {
+                let remarks = match crate::parse::remarks::metar_remarks::remarks(remark.unwrap_or("")) {
+                    Ok(a) => Some(a),
+                    Err(e) => None
+                };
                 MetarReport {
                     identifier,
                     observation_time,
@@ -93,6 +97,7 @@ peg::parser! {
                     water_conditions,
                     trends,
                     remark,
+                    remarks,
                     pirep_remark,
                     maintenance_needed: maintenance_needed.is_some(),
                 }
@@ -106,9 +111,11 @@ peg::parser! {
         rule required_whitespace_or_eof() = (required_whitespace() / ![_])
         rule required_whitespace() =
             quiet!{
-                (whitespace_char()+ ("/"+ whitespace_char())+)
-                / (whitespace_char()+ ("M" whitespace_char())+)
-                / whitespace_char()+
+                (
+                    (whitespace_char()+ ("/"+ whitespace_char())+)
+                    / (whitespace_char()+ ("M" whitespace_char())+)
+                    / whitespace_char()+
+                )+
             }
             / expected!("whitespace");
         rule whitespace_char() -> &'input str = $(
@@ -189,35 +196,35 @@ peg::parser! {
                 (digit()*) "NDV" visibility_unit()? { None }
                 / "////" visibility_unit() { None }
                 / "////" "NDV" visibility_unit()? { None }
-                / prevailing:raw_visibility() whitespace() minimum:directional_or_raw_visibility() whitespace() maximum_directional:directional_visibility() &required_whitespace(){
+                / prevailing:raw_visibility() whitespace() minimum:directional_or_raw_visibility() whitespace() maximum_directional:directional_visibility() required_whitespace(){
                     Some(Visibility {
                         prevailing: Some(prevailing),
                         minimum: Some(minimum),
                         maximum_directional: Some(maximum_directional),
                     })
                 }
-                / prevailing:raw_visibility() whitespace() minimum:directional_or_raw_visibility() &required_whitespace() {
+                / prevailing:raw_visibility() whitespace() minimum:directional_or_raw_visibility() required_whitespace() {
                     Some(Visibility {
                         prevailing: Some(prevailing),
                         minimum: Some(minimum),
                         maximum_directional: None,
                     })
                 }
-                / minimum:directional_visibility() whitespace() maximum_directional:directional_visibility() &required_whitespace(){
+                / minimum:directional_visibility() whitespace() maximum_directional:directional_visibility() required_whitespace(){
                     Some(Visibility {
                         prevailing: None,
                         minimum: Some(DirectionalOrRawVisiblity::Directional(minimum)),
                         maximum_directional: Some(maximum_directional),
                     })
                 }
-                / minimum:directional_visibility() &required_whitespace() {
+                / minimum:directional_visibility() required_whitespace() {
                     Some(Visibility {
                         prevailing: None,
                         minimum: Some(DirectionalOrRawVisiblity::Directional(minimum)),
                         maximum_directional: None,
                     })
                 }
-                / prevailing:raw_visibility() &required_whitespace() {
+                / prevailing:raw_visibility() required_whitespace() {
                     Some(Visibility {
                         prevailing: Some(prevailing),
                         minimum: None,

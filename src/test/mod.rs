@@ -16,6 +16,18 @@ fn validate_runway_visibility_post_runway_report() {
     ).unwrap();
 }
 
+#[test]
+fn validate_remark_sea_level_pressure() {
+    let metar = crate::parse::metar(
+        "EDMO 210420Z AUTO 27007KT 9999 // SCT025/// BKN041/// OVC052/// 06/04 Q1011 RMK SLP250="
+    ).unwrap();
+    dbg!(metar.clone());
+    assert_eq!(
+        metar.remarks.expect("Failed to get metar remarks")
+        .sea_level_pressure.expect("Failed to get sea level pressure")
+        .get::<uom::si::pressure::hectopascal>(), 250.0)
+}
+
 // The following are real world samples that failed for one reason or another and are used as sanity checks
 
 #[test]
@@ -24,3 +36,10 @@ fn validate_sample_1() {
         "EDMO 210420Z AUTO 27007KT 9999 // SCT025/// BKN041/// OVC052/// 06/04 Q1011="
     ).unwrap();
 }
+
+// #[test]06
+// fn validate_sample_2() {
+//     crate::parse::metar(
+//         "YBBN 211630Z 04007KT 9999 FEW016 BKN050 23/20 Q1018 RF00/0/002/4="
+//     ).unwrap();
+// }

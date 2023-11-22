@@ -1,6 +1,8 @@
 
 use uom::si::f64::{Angle, Length, Pressure, ThermodynamicTemperature, Velocity};
 
+use crate::parse::remarks::Remarks;
+
 macro_rules! enum_with_str_repr {
     (
         $(#[$enum_attr:meta])*
@@ -589,6 +591,8 @@ pub struct MetarReport<'input> {
     pub trends: Vec<Trend>,
     /// Additional information outside of the METAR specification
     pub remark: Option<&'input str>,
+    /// Commonly defined Remarks parsed as much as possible
+    pub remarks: Option<Remarks>,
     /// Pilot reported weather information
     pub pirep_remark: Option<&'input str>,
     /// Some automated METARs indicate if the system needs maintenance

@@ -1,5 +1,6 @@
 mod parser;
-
+pub mod remarks;
+mod test;
 pub use parser::weather_reports::metar;
 
 

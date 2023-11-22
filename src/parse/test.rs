@@ -1,4 +1,5 @@
-use super::parse::weather_reports::*;
+use super::parser::weather_reports::*;
+use super::remarks::metar_remarks::*;
 
 #[test]
 fn parse_icao_identifier() {
@@ -24,7 +25,10 @@ fn parse_wind() {
 #[test]
 fn parse_prevailing_visibility() {
     for val in ["1/2SM ", "10SM "] {
-        visibility(val).expect(val);
+        println!("[PEG_INPUT_START]\n{}\n[PEG_TRACE_START]", val);
+        let metar = visibility(val);
+        println!("[PEG_TRACE_STOP]");
+        metar.expect(val);
     }
 }
 
@@ -80,6 +84,20 @@ fn parse_color() {
 #[test]
 fn parse_whitespace() {
     for val in [" ///// ", " > ", "\t", "\r\n\r\n", " > /// \n> "] {
+        println!("[PEG_INPUT_START]\n{}\n[PEG_TRACE_START]", val);
         whitespace(val).expect(val);
+        println!("[PEG_TRACE_STOP]");
     }
+}
+
+#[test]
+fn parse_slp_remark() {
+    println!("[PEG_INPUT_START]\n{}\n[PEG_TRACE_START]", "RMK SLP250=");
+    let remark = remarks("RMK SLP250=");
+    println!("[PEG_TRACE_STOP]");
+    assert_eq!(
+        remark.unwrap().sea_level_pressure
+            .expect("Failed to get sea level pressure").get::<uom::si::pressure::hectopascal>(),
+        250.0
+    )
 }

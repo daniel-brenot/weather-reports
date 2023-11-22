@@ -38,7 +38,7 @@ peg::parser! {
             / ">"
         );
 
-        pub rule remarks() -> Remarks = remark_prefix() required_whitespace()+ remarks:remark() ** required_whitespace() "="? {
+        pub rule remarks() -> Remarks = (remark_prefix() required_whitespace()+)? remarks:remark() ** required_whitespace() "="? {
             let mut sea_level_pressure: Option<Pressure> = None;
             let mut unknown_remarks: Vec<String> = Vec::new();
             for remark in remarks {

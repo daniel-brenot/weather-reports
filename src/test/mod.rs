@@ -25,7 +25,16 @@ fn validate_remark_sea_level_pressure() {
     assert_eq!(
         metar.remarks.expect("Failed to get metar remarks")
         .sea_level_pressure.expect("Failed to get sea level pressure")
-        .get::<uom::si::pressure::hectopascal>(), 250.0)
+        .get::<uom::si::pressure::hectopascal>(), 1025.0)
+}
+
+#[test]
+fn validate_remark_without_indicator() {
+    let metar = crate::parse::metar(
+        "EDMO 210420Z AUTO 27007KT 9999 // SCT025/// BKN041/// OVC052/// 06/04 Q1011 SLP250="
+    ).unwrap();
+    println!("{:?}", metar.remark);
+    metar.remarks.expect("Failed to get metar remarks");
 }
 
 // The following are real world samples that failed for one reason or another and are used as sanity checks

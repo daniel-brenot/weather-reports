@@ -70,9 +70,13 @@ peg::parser! {
                     maintenance_needed:quiet!{"$"}? whitespace()
                     // Consumes trailing garbage characters
                     quiet!{"/"*} whitespace()
+                    // Sometimes remarks are omitted, and this lets us process them anyways
+                    unmarked_remark: $(quiet!{[^'=']*})?
                     // Some machines use = to indicate end of message
                     quiet!{"=" [_]*}? whitespace()
                     {
+                let remark = remark.or(unmarked_remark);
+                println!("{:?}", remark);
                 let remarks = match crate::parse::remarks::metar_remarks::remarks(remark.unwrap_or("")) {
                     Ok(a) => Some(a),
                     Err(e) => None

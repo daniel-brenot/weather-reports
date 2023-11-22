@@ -98,6 +98,6 @@ fn parse_slp_remark() {
     assert_eq!(
         remark.unwrap().sea_level_pressure
             .expect("Failed to get sea level pressure").get::<uom::si::pressure::hectopascal>(),
-        250.0
+        1025.0
     )
 }

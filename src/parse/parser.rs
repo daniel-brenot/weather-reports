@@ -607,12 +607,20 @@ peg::parser! {
                     None
                 }
             } / expected!("temperatures")
-
+        
         pub rule pressure() -> Option<Pressure> =
             pressure_unit:pressure_unit() whitespace() pressure:$(digit()+ ("." digit()+)?) {
                 match pressure_unit {
-                    "A" => Some(Pressure::new::<hectopascal>(pressure.parse().unwrap())),
-                    _ => Some(Pressure::new::<inch_of_mercury>(pressure.parse::<f64>().unwrap() / 100.))
+                    "A" => {
+                        // Some countries report altimeter values in hectopascals, while others use altimeter
+                        // The only way to tell is by seeing if the value is unreasonable as a number in hectopascals
+                        if pressure.parse::<u32>().unwrap() > 2000 {
+                            Some(Pressure::new::<inch_of_mercury>(pressure.parse().unwrap()))
+                        } else {
+                            Some(Pressure::new::<hectopascal>(pressure.parse().unwrap()))
+                        }
+                    },
+                    _ => Some(Pressure::new::<hectopascal>(pressure.parse::<f64>().unwrap() / 100.))
                 }
             }
             / pressure_unit() whitespace() ("////" / "NIL") { None }
